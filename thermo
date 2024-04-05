@@ -3,13 +3,13 @@
 
 # Copyright (C) 2017 Aleksey Rogov <alex@arogov.com> . All rights reserved.
 
-import time
-import sqlite3
-import zlib
 import binascii
 import hashlib
 import os
+import sqlite3
 import sys
+import time
+import zlib
 
 keys = ('1234567890qwertyuiop_asdfghjklzxcvbnm-ASDFGHJKLZ', )
 

@@ -1,15 +1,15 @@
 # Copyright (C) 2017 Aleksey Rogov <alex@arogov.com>. All rights reserved.
 
 import machine
-import bme280
-import binascii
-import hashlib
 import network
-import json
-import zlib
-import os
-import time
+from binascii import hexlify, a2b_base64
+from bme280 import BME280
+from hashlib import sha1
+from json import loads
+from os import remove
+from time import ticks_us
 from urllib.urequest import urlopen
+from zlib import decompress
 
 SLEEP_TIME = 612000
 WD_TIMER = 15000
@@ -41,24 +41,24 @@ def deepsleep(period):
 
 
 def wd_handler(calledvalue):
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Diconnecting from network')
+    print(f'[{ticks_us() / 1000000:12.6f}] Diconnecting from network')
     wlan.disconnect()
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Pulling down interface')
+    print(f'[{ticks_us() / 1000000:12.6f}] Pulling down interface')
     wlan.active(False)
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Sleeping.')
+    print(f'[{ticks_us() / 1000000:12.6f}] Sleeping.')
     deepsleep(SLEEP_TIME)
 
 
 pin = machine.Pin(BREAK_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
 
 if pin.value() == 1:
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Copyright (C) 2017 Aleksey Rogov <alex@arogov.com>. All rights reserved.')
+    print(f'[{ticks_us() / 1000000:12.6f}] Copyright (C) 2017 Aleksey Rogov <alex@arogov.com>. All rights reserved.')
 
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Init watchdog timer...', end='')
+    print(f'[{ticks_us() / 1000000:12.6f}] Init watchdog timer...', end='')
     wd_scheduler = machine.Timer(-1)
     wd_scheduler.init(period=WD_TIMER, mode=machine.Timer.PERIODIC, callback=wd_handler)
 
-    print(f'OK\n[{time.ticks_us() / 1000000:12.6f}] Connecting to network...', end='')
+    print(f'OK\n[{ticks_us() / 1000000:12.6f}] Connecting to network...', end='')
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     wlan.ifconfig((IFCONFIG_IP, IFCONFIG_MASK, IFCONFIG_GW, IFCONFIG_DNS))
@@ -67,43 +67,43 @@ if pin.value() == 1:
     else:
         wlan.connect(WIFI_SSID, WIFI_KEY, bssid=WIFI_BSSID)
 
-    print(f'OK\n[{time.ticks_us() / 1000000:12.6f}] Calculating SHA1: ', end='')
-    s = hashlib.sha1()
+    print(f'OK\n[{ticks_us() / 1000000:12.6f}] Calculating SHA1: ', end='')
+    s = sha1()
     with open(MAIN_FILE_NAME, 'rb') as f:
         for line in f:
             s.update(line)
-    sha1 = binascii.hexlify(s.digest()).decode('utf-8')
+    sha1 = hexlify(s.digest()).decode('utf-8')
     print(sha1)
 
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Gathering data from sensor: ', end='')
+    print(f'[{ticks_us() / 1000000:12.6f}] Gathering data from sensor: ', end='')
     try:
         i2c = machine.I2C(scl=machine.Pin(SCL_PIN), sda=machine.Pin(SDA_PIN))
-        bme = bme280.BME280(i2c=i2c)
+        bme = BME280(i2c=i2c)
         cd = bme.read_compensated_data()
     except:
         cd = [0, 0, 0]
         print('Fail')
     else:
-        print(f't = {cd[0] / 100} C; P = {cd[1] / 256} Pa; RH = {cd[2] / 1024} %')
+        print(f't = {cd[0] / 100:.1f} C; P = {cd[1] / 256:.3f} Pa; RH = {cd[2] / 1024:.1f}%')
 
     adcv = machine.ADC(0).read()
-    print(f'[{time.ticks_us() / 1000000:12.6f}] ADC value = {adcv}')
+    print(f'[{ticks_us() / 1000000:12.6f}] ADC value = {adcv}')
 
-    mac = binascii.hexlify(network.WLAN().config('mac')).decode('utf-8')
-    uniq_id = binascii.hexlify(machine.unique_id()).decode('utf-8')
+    mac = hexlify(network.WLAN().config('mac')).decode('utf-8')
+    uniq_id = hexlify(machine.unique_id()).decode('utf-8')
 
     while not wlan.isconnected():
         machine.idle()
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Connected')
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Sending data to server...', end='')
+    print(f'[{ticks_us() / 1000000:12.6f}] Connected')
+    print(f'[{ticks_us() / 1000000:12.6f}] Sending data to server...', end='')
     s = urlopen(SERVER_URL, data=f'key={SERVER_KEY}&sid={uniq_id}&mac={mac}&temp={cd[0] / 100}&pres={cd[1] / 256}&hum={cd[2] / 1024}&adc={adcv}&sha1={sha1}')
-    print(f'OK\n[{time.ticks_us() / 1000000:12.6f}] Reading response: ', end='')
+    print(f'OK\n[{ticks_us() / 1000000:12.6f}] Reading response: ', end='')
 
     tmp = s.readline()
     try:
-        status = json.loads(tmp)
+        status = loads(tmp)
     except ValueError:
-        print(f'FAIL.\n[{time.ticks_us() / 1000000:12.6f}] Incorrect server response. Sleeping')
+        print(f'FAIL.\n[{ticks_us() / 1000000:12.6f}] Incorrect server response. Sleeping')
         deepsleep(SLEEP_TIME)
 
     print(f'status: {status["status"]}, reason: {status["reason"]}')
@@ -113,15 +113,15 @@ if pin.value() == 1:
         base64_data = s.read()
         s.close()
         print('OK')
-        zip_data = binascii.a2b_base64(base64_data)
+        zip_data = a2b_base64(base64_data)
         del(base64_data)
         gc.collect()
-        fw_new = zlib.decompress(zip_data)
+        fw_new = decompress(zip_data)
         del(zip_data)
         gc.collect()
-        new_fw_sha1 = binascii.hexlify(hashlib.sha1(fw_new).digest()).decode('utf-8')
+        new_fw_sha1 = hexlify(sha1(fw_new).digest()).decode('utf-8')
         if recvd_sha1 == new_fw_sha1:
-            os.remove(MAIN_FILE_NAME)
+            remove(MAIN_FILE_NAME)
             f = open(MAIN_FILE_NAME, 'wb+')
             f.write(fw_new)
             f.close()
@@ -130,11 +130,6 @@ if pin.value() == 1:
             print(f'SHA1 error: {recvd_sha1} vs {new_fw_sha1}')
     else:
         s.close()
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Diconnecting from network')
-    wlan.disconnect()
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Pulling down interface')
-    wlan.active(False)
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Sleeping.')
-    deepsleep(SLEEP_TIME)
+    wd_handler(None)
 else:
-    print(f'[{time.ticks_us() / 1000000:12.6f}] Break pin is pulled down.')
+    print(f'[{ticks_us() / 1000000:12.6f}] Break pin is pulled down.')
