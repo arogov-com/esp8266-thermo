@@ -1,0 +1,20 @@
+networks:
+  net-thermo:
+    name: net-thermo
+
+services:
+  thermo:
+    container_name: thermo
+    image: thermo
+    restart: always
+    networks:
+      - net-thermo
+    environment:
+      - FW_FILE=main_fw.py
+      - ROOT_KEY=11223344-5566-7777-8cdb-84e9677435ff
+      - ROOT_EMAIL=alekzzzr@gmail.com
+      - SQLITE_DATABASE_URL=sqlite+aiosqlite:///db/thermo.db
+    ports:
+      - "8000:8000"
+    volumes:
+       - ./db/:/thermo/db/

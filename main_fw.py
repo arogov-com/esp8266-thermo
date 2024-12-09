@@ -8,7 +8,7 @@ from hashlib import sha1
 from json import loads
 from os import remove
 from time import ticks_us
-from urllib.urequest import urlopen
+from urequests import post
 from zlib import decompress
 
 SLEEP_TIME = 612000
@@ -96,25 +96,29 @@ if pin.value() == 1:
         machine.idle()
     print(f'[{ticks_us() / 1000000:12.6f}] Connected')
     print(f'[{ticks_us() / 1000000:12.6f}] Sending data to server...', end='')
-    s = urlopen(SERVER_URL, data=f'key={SERVER_KEY}&sid={uniq_id}&mac={mac}&temp={cd[0] / 100}&pres={cd[1] / 256}&hum={cd[2] / 1024}&adc={adcv}&sha1={sha1}')
+    response = post(SERVER_URL, data=f'{{"sid":"{uniq_id}","mac":"{mac}","temp":"{cd[0] / 100}","pres":"{cd[1] / 256}","hum":"{cd[2] / 1024}","adc":"{adcv}","sha1":"{sha1}","update":"true"}}',
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {SERVER_KEY}"})
+
+    if response.status_code == 201:
+        print(f'[{ticks_us() / 1000000:12.6f}] Server returned non 2xx code')
+        wd_handler(None)
+
     print(f'OK\n[{ticks_us() / 1000000:12.6f}] Reading response: ', end='')
+    response_json = response.json()
+    response.close()
+    del(response)
+    gc.collect()
 
-    tmp = s.readline()
-    try:
-        status = loads(tmp)
-    except ValueError:
-        print(f'FAIL.\n[{ticks_us() / 1000000:12.6f}] Incorrect server response. Sleeping')
-        deepsleep(SLEEP_TIME)
+    print(f'status: {response_json["status"]}, reason: {response_json["reason"]}')
+    if response_json["status"] != True:
+        print(f'[{ticks_us() / 1000000:12.6f}] Server returned invalid status')
+        wd_handler(None)
 
-    print(f'status: {status["status"]}, reason: {status["reason"]}')
-    recvd_sha1 = status.get('sha1')
+    recvd_sha1 = response_json.get('sha1')
     if recvd_sha1 and recvd_sha1 != sha1:
-        print(f'New firmware is available with SHA1 {status["sha1"]}\nDownloading...', end='')
-        base64_data = s.read()
-        s.close()
-        print('OK')
-        zip_data = a2b_base64(base64_data)
-        del(base64_data)
+        print(f'[{ticks_us() / 1000000:12.6f}] New firmware is available with SHA1 {response_json["sha1"]}')
+        zip_data = a2b_base64(response_json["content"])
+        del(response_json)
         gc.collect()
         fw_new = decompress(zip_data)
         del(zip_data)
@@ -125,11 +129,10 @@ if pin.value() == 1:
             f = open(MAIN_FILE_NAME, 'wb+')
             f.write(fw_new)
             f.close()
-            print(f'Firmware successfully upgraded with SHA1 {new_fw_sha1}')
+            print(f'[{ticks_us() / 1000000:12.6f}] Firmware successfully upgraded with SHA1 {new_fw_sha1}')
         else:
-            print(f'SHA1 error: {recvd_sha1} vs {new_fw_sha1}')
-    else:
-        s.close()
+            print(f'[{ticks_us() / 1000000:12.6f}] SHA1 error: {recvd_sha1} vs {new_fw_sha1}')
+
     wd_handler(None)
 else:
     print(f'[{ticks_us() / 1000000:12.6f}] Break pin is pulled down.')
