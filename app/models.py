@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Aleksei Rogov <alekzzzr@gmail.com>. All rights reserved.
+
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 

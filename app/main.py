@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Aleksei Rogov <alekzzzr@gmail.com>. All rights reserved.
+
 import uvicorn
 from fastapi import FastAPI, Depends
 from app import thermo
