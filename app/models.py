@@ -10,13 +10,14 @@ class Base(DeclarativeBase):
 class ThermoModel(Base):
     __tablename__ = "thermo"
     id: Mapped[int] = mapped_column(primary_key=True)
-    key: Mapped[int]
+    key_id: Mapped[int]
     sid: Mapped[str]
     mac: Mapped[str]
     temp: Mapped[float]
     pres: Mapped[float]
     hum: Mapped[float]
     adc: Mapped[float]
+    timestamp: Mapped[int]
 
 
 class KeyModel(Base):

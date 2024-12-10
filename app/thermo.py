@@ -136,13 +136,14 @@ async def add_thermo(data: ThermoAddSchema, token: Annotated[str, Depends(oauth2
     result = await auth_check(token, session, "perm_add_thermo")
 
     thermo = ThermoModel(
-        key=result.id,
+        key_id=result.id,
         sid=data.sid,
         mac=data.mac,
         temp=data.temp,
         pres=data.pres,
         hum=data.hum,
         adc=data.adc,
+        timestamp=int(time()),
     )
     session.add(thermo)
     await session.commit()
